@@ -1,43 +1,65 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
+
+#define _POSIX_C_SOURCE 200112L
 #include <dirent.h>
-#include <sys/stat.h>
-#include <string.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
-#define error_several(x) fprintf(stderr,x); exit(EXIT_FAILURE);
+#define error_several(x) fprintf(stderr,x); exit(EXIT_FAILURE) 
+
+#define control_negative(y,x) if(x == -1){\
+                        fprintf(stderr,"%s failed at line %d of file %s (function %s)\n",y,__LINE__,__FILE__,__func__);\
+                        exit(EXIT_FAILURE);}
+
+#define control_null(y,x) if(x == NULL){ \
+                        fprintf(stderr,"%s failed at line %d of file %s (function %s)\n",y,__LINE__,__FILE__,__func__);\
+                        exit(EXIT_FAILURE);}
+
 #define MAXARGAMOUNT 6
+#define DEBUG_MODE 1
 
-#define DEBUG_MODE 0
 
 typedef struct
 {
-    unsigned int numberArguments;
-    bool DestinationPathThere;
+    unsigned int NrArguments;
+    bool PathIsThere;
     char* PathName;
     char* Arguments;
     
 }CommandInfo;
 
+typedef struct 
+{
+    DIR *DirStream;
+    struct dirent* DirInfo; 
+    struct stat buf;
+    char* PathNameAux;
+
+}VariablesforSearch;
+
+
 void parse_arguments(CommandInfo* Info,int argc,char** argv);
+void getFilesInfo(VariablesforSearch* forSearch, CommandInfo* Info);
 
 //void book_example();
 
 int main(int argc, char *argv[])
 { 
     CommandInfo Info;
+    VariablesforSearch forSearch;
+
+    forSearch.PathNameAux = (char*)malloc(sizeof(char)*60);
 
     parse_arguments(&Info,argc,argv);
 
-#if DEBUG_MODE == 1
-    printf("Number Arguments : %u\n", Info.numberArguments);
-    printf("Destination path there : %s\n", Info.DestinationPathThere ? "TRUE" : "FALSE");
-    printf("Path name: %s\n", Info.PathName);
-    printf("Arguments type: %s\n", Info.Arguments);
-#endif
+    getFilesInfo(&forSearch, &Info);
 
+    free(forSearch.PathNameAux);
     free(Info.Arguments);
     exit(EXIT_SUCCESS);
 }
@@ -46,9 +68,9 @@ void parse_arguments(CommandInfo* Info,int argc,char** argv)
 {
     if(argc == 1)
     {
-        Info->numberArguments = 0;
-        Info->DestinationPathThere = false;
-        Info->PathName = NULL;
+        Info->NrArguments = 0;
+        Info->PathIsThere = false;
+        Info->PathName = ".";
         Info->Arguments = NULL;
     }
     else
@@ -61,21 +83,22 @@ void parse_arguments(CommandInfo* Info,int argc,char** argv)
         //There was no path given
         if (strchr(argv[argc-1],'/') == NULL && strchr(argv[argc-1],'.') == NULL)
         {  
-            Info->DestinationPathThere = false;
-            Info->PathName = NULL;
+            Info->PathIsThere = false;
+            Info->PathName = ".";
             loopLimit = argc - 1;
         }
         //There is a path 
         else 
         {
-            Info->DestinationPathThere = true;
+            Info->PathIsThere = true;
             Info->PathName = argv[argc-1];
+            strcat(Info->PathName,"/");
             loopLimit = argc - 2;
 
             //This is the case, when only the path is available
             if(argc == 2)
             {
-                Info->numberArguments = 0;
+                Info->NrArguments = 0;
                 Info->Arguments = NULL;
                 return;
             }
@@ -89,9 +112,63 @@ void parse_arguments(CommandInfo* Info,int argc,char** argv)
 
                 strcat(Info->Arguments,++argv[cnt]);
             }
-        Info->numberArguments = strlen(Info->Arguments);   
+        Info->NrArguments = strlen(Info->Arguments);   
     }
 
+#if DEBUG_MODE == 1
+    printf("Number Arguments : %u\n", Info->NrArguments);
+    printf("Destination path there : %s\n", Info->PathIsThere ? "TRUE" : "FALSE");
+    printf("Path name: %s\n", Info->PathName);
+    printf("Arguments type: %s\n\n", Info->Arguments);
+#endif
+
+}
+
+void getFilesInfo(VariablesforSearch* forSearch, CommandInfo* Info)
+{
+forSearch->DirStream = opendir(Info->PathName);
+    control_null("opendir()",forSearch->DirStream);
+        
+    errno = 0;
+
+    //every file and directory that is contained in the given path is going to be shown
+    while((forSearch->DirInfo = readdir(forSearch->DirStream)) != NULL)
+    {
+        if(Info->PathIsThere == true)
+        {
+            strcpy(forSearch->PathNameAux,Info->PathName);
+            strcat(forSearch->PathNameAux,forSearch->DirInfo->d_name);
+            control_negative("lstat()",lstat(forSearch->PathNameAux,&forSearch->buf));
+                
+        }
+        else
+        {
+            control_negative("lstat()",lstat(forSearch->DirInfo->d_name,&forSearch->buf));
+        }
+            
+
+#if DEBUG_MODE == 1
+        printf("Name der Datei: %s\n",forSearch->DirInfo->d_name);
+        printf("Seriennummer der Datei: %ld\n",forSearch->DirInfo->d_ino);
+        printf("ID of device containing file: %ld\n",forSearch->buf.st_dev);
+        printf("Inode number: %ld\n", forSearch->buf.st_ino);
+        printf("Protection: %d\n",forSearch->buf.st_mode);
+        printf("Number of hard links : %ld\n",forSearch->buf.st_nlink);
+        printf("User ID of owner : %d\n", forSearch->buf.st_uid);
+        printf("Group ID of owner : %d\n", forSearch->buf.st_gid);
+        printf("Total size, in bytes : %ld\n", forSearch->buf.st_size);
+        printf("Blocksize for file system I/O : %ld\n", forSearch->buf.st_blksize);
+        printf("Time of last access : %ld\n", forSearch->buf.st_atime);
+        printf("Time of last modification : %ld\n", forSearch->buf.st_mtime);
+        printf("time of last status change : %ld\n\n", forSearch->buf.st_ctime);
+#endif
+        
+    }
+        
+    control_negative("closedir()",closedir(forSearch->DirStream));
+
+    if(errno != 0)
+        error_several("errno unequal 0, error at readdir()");
 }
 /*
 void book_example()
