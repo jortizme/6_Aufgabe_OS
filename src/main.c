@@ -70,9 +70,7 @@ int main(int argc, char *argv[])
     parse_arguments(&Info,argc,argv);
 
     getFilesInfo(&forSearch, &Info, &Arguments);
-
-    printf("\n\n");
-
+    
     exit(EXIT_SUCCESS);
 }
 
