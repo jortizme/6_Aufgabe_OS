@@ -10,6 +10,8 @@
 #define error_several(x) fprintf(stderr,x); exit(EXIT_FAILURE);
 #define MAXARGAMOUNT 6
 
+#define DEBUG_MODE 0
+
 typedef struct
 {
     unsigned int numberArguments;
@@ -19,46 +21,63 @@ typedef struct
     
 }CommandInfo;
 
+void parse_arguments(CommandInfo* Info,int argc,char** argv);
+
 //void book_example();
 
 int main(int argc, char *argv[])
 { 
     CommandInfo Info;
 
+    parse_arguments(&Info,argc,argv);
+
+#if DEBUG_MODE == 1
+    printf("Number Arguments : %u\n", Info.numberArguments);
+    printf("Destination path there : %s\n", Info.DestinationPathThere ? "TRUE" : "FALSE");
+    printf("Path name: %s\n", Info.PathName);
+    printf("Arguments type: %s\n", Info.Arguments);
+#endif
+
+    free(Info.Arguments);
+    exit(EXIT_SUCCESS);
+}
+
+void parse_arguments(CommandInfo* Info,int argc,char** argv)
+{
     if(argc == 1)
     {
-        Info.numberArguments = 0;
-        Info.DestinationPathThere = false;
-        Info.PathName = NULL;
-        Info.Arguments = NULL;
+        Info->numberArguments = 0;
+        Info->DestinationPathThere = false;
+        Info->PathName = NULL;
+        Info->Arguments = NULL;
     }
     else
     {
         unsigned int cnt;
-        Info.Arguments = (char*)malloc(sizeof(char)*MAXARGAMOUNT);
-        *Info.Arguments = 0;
+        Info->Arguments = (char*)malloc(sizeof(char)*MAXARGAMOUNT);
+        *Info->Arguments = 0;
         unsigned int loopLimit;
 
         //There was no path given
         if (strchr(argv[argc-1],'/') == NULL && strchr(argv[argc-1],'.') == NULL)
         {  
-            Info.DestinationPathThere = false;
-            Info.PathName = NULL;
+            Info->DestinationPathThere = false;
+            Info->PathName = NULL;
             loopLimit = argc - 1;
         }
         //There is a path 
         else 
         {
-            Info.DestinationPathThere = true;
-            Info.PathName = argv[argc-1];
+            Info->DestinationPathThere = true;
+            Info->PathName = argv[argc-1];
             loopLimit = argc - 2;
 
             //This is the case, when only the path is available
             if(argc == 2)
             {
-                Info.numberArguments = 0;
-                Info.Arguments = NULL;
-                exit(EXIT_SUCCESS);
+                Info->numberArguments = 0;
+                Info->Arguments = NULL;
+                return;
             }
         }
         for(cnt = 1; cnt <= loopLimit; cnt++)
@@ -67,17 +86,13 @@ int main(int argc, char *argv[])
                 {
                     error_several("Arguments must be started by the '-' symbol\n");
                 }
-                    
 
-                strcat(Info.Arguments,++argv[cnt]);
+                strcat(Info->Arguments,++argv[cnt]);
             }
-        Info.numberArguments = strlen(Info.Arguments);   
+        Info->numberArguments = strlen(Info->Arguments);   
     }
 
-    free(Info.Arguments);
-    exit(EXIT_SUCCESS);
 }
-
 /*
 void book_example()
 {
