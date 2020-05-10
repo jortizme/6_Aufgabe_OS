@@ -7,10 +7,8 @@
 #include <errno.h>
 #include <stdbool.h>
 
-#define error_fatal(x) fprintf(stderr,x)
-
-//enum Argument {YES, NO, UNKNOWN};
-
+#define error_several(x) fprintf(stderr,x); exit(EXIT_FAILURE);
+#define MAXARGAMOUNT 6
 
 typedef struct
 {
@@ -21,16 +19,11 @@ typedef struct
     
 }CommandInfo;
 
-
 //void book_example();
 
 int main(int argc, char *argv[])
-{
-    if(argc < 1)
-        error_fatal("Too few arguments");   //Swachsinn
-    
+{ 
     CommandInfo Info;
-    int Argcnt = 0;
 
     if(argc == 1)
     {
@@ -39,86 +32,50 @@ int main(int argc, char *argv[])
         Info.PathName = NULL;
         Info.Arguments = NULL;
     }
-    else if (argc == 2)
-    {
-        char* Argvaux;
-
-        if((Argvaux = strchr(argv[1],'-')) == NULL)
-        {
-            Info.numberArguments = 0;
-            Info.DestinationPathThere = true;
-            Info.PathName = argv[1];
-            Info.Arguments = NULL;
-        }
-        else
-        {
-            //no path entered
-            Argcnt = strlen(argv[1]) - 1;
-
-            Info.Arguments = (char*)malloc((sizeof(char)*Argcnt) + 1); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            *Info.Arguments = 0;
-            Argvaux++;
-            
-            strcat(Info.Arguments,Argvaux);
-            //Info.Arguments = Argvaux;
-        
-            Info.numberArguments = Argcnt;
-            Info.DestinationPathThere = false;
-            Info.PathName = NULL;
-        }
-        
-    }
     else
     {
+        unsigned int cnt;
+        Info.Arguments = (char*)malloc(sizeof(char)*MAXARGAMOUNT);
+        *Info.Arguments = 0;
+        unsigned int loopLimit;
+
+        //There was no path given
         if (strchr(argv[argc-1],'/') == NULL && strchr(argv[argc-1],'.') == NULL)
         {  
-            int cnt;
             Info.DestinationPathThere = false;
             Info.PathName = NULL;
-            Argcnt = argc - 1;
-
-            Info.Arguments = (char*)malloc((sizeof(char)*Argcnt) + 1); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-            *Info.Arguments = 0;
-            
-            for(cnt = 1; cnt <= argc - 1; cnt++)
-            {
-                strcat(Info.Arguments,++argv[cnt]);
-            }
-
-            Info.numberArguments = strlen(Info.Arguments);
+            loopLimit = argc - 1;
         }
-
+        //There is a path 
         else 
         {
-            int cnt;
             Info.DestinationPathThere = true;
             Info.PathName = argv[argc-1];
-            int CharstoAllocate;
+            loopLimit = argc - 2;
 
-            if((argc - 2) == 1)
-                CharstoAllocate = 6;
-            else
-                CharstoAllocate = argc - 2;
-
-
-            Info.Arguments = (char*)malloc((sizeof(char)*CharstoAllocate) + 1); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-            *Info.Arguments = 0;
-
-            for(cnt = 1; cnt <= argc - 2; cnt++)
+            //This is the case, when only the path is available
+            if(argc == 2)
             {
-                //Info.Arguments[cnt-1] = ++argv[cnt - 1];
+                Info.numberArguments = 0;
+                Info.Arguments = NULL;
+                exit(EXIT_SUCCESS);
+            }
+        }
+        for(cnt = 1; cnt <= loopLimit; cnt++)
+            {
+                if(strchr(argv[cnt],'-') == NULL)
+                {
+                    error_several("Arguments must be started by the '-' symbol\n");
+                }
+                    
+
                 strcat(Info.Arguments,++argv[cnt]);
             }
-
-            Info.numberArguments = strlen(Info.Arguments);
-        }
-        
+        Info.numberArguments = strlen(Info.Arguments);   
     }
 
-    return 0;
-
+    free(Info.Arguments);
+    exit(EXIT_SUCCESS);
 }
 
 /*
