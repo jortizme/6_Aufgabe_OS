@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <time.h>
 
 #define error_several(x) fprintf(stderr,x); exit(EXIT_FAILURE) 
 
@@ -20,47 +21,56 @@
                         fprintf(stderr,"%s failed at line %d of file %s (function %s)\n",y,__LINE__,__FILE__,__func__);\
                         exit(EXIT_FAILURE);}
 
-#define MAXARGAMOUNT 6
-#define DEBUG_MODE 1
+#define MAX_ARG_AMOUNT 6
+#define MAX_PATH_LENGTH 128
+#define DEBUG_MODE 0
 
 
-typedef struct
+typedef struct CommandInfo
 {
     unsigned int NrArguments;
     bool PathIsThere;
-    char* PathName;
-    char* Arguments;
+    char PathName[MAX_PATH_LENGTH];
+    char Arguments[MAX_ARG_AMOUNT];
     
 }CommandInfo;
 
-typedef struct 
+typedef struct VariablesforSearch
 {
     DIR *DirStream;
     struct dirent* DirInfo; 
     struct stat buf;
-    char* PathNameAux;
+    char PathNameAux[MAX_PATH_LENGTH];
 
 }VariablesforSearch;
 
+typedef struct CheckForArguments
+{
+    bool a_isThere;
+    bool o_isThere;
+    bool l_isThere;
+    bool g_isThere;
+
+}CheckForArguments;
 
 void parse_arguments(CommandInfo* Info,int argc,char** argv);
-void getFilesInfo(VariablesforSearch* forSearch, CommandInfo* Info);
-
-//void book_example();
+void getFilesInfo(VariablesforSearch* forSearch, CommandInfo* Info, CheckForArguments *Arguments);
 
 int main(int argc, char *argv[])
 { 
     CommandInfo Info;
     VariablesforSearch forSearch;
+    CheckForArguments Arguments = {.a_isThere = false, .o_isThere = false, .l_isThere = false, .g_isThere = false};
 
-    forSearch.PathNameAux = (char*)malloc(sizeof(char)*60);
+    for(int i = 0; i < MAX_ARG_AMOUNT; i++)
+    {
+        Info.Arguments[i] = 0;
+    }
 
     parse_arguments(&Info,argc,argv);
 
-    getFilesInfo(&forSearch, &Info);
+    getFilesInfo(&forSearch, &Info, &Arguments);
 
-    free(forSearch.PathNameAux);
-    free(Info.Arguments);
     exit(EXIT_SUCCESS);
 }
 
@@ -70,28 +80,25 @@ void parse_arguments(CommandInfo* Info,int argc,char** argv)
     {
         Info->NrArguments = 0;
         Info->PathIsThere = false;
-        Info->PathName = ".";
-        Info->Arguments = NULL;
+        strcpy(Info->PathName, ".");
     }
     else
     {
         unsigned int cnt;
-        Info->Arguments = (char*)malloc(sizeof(char)*MAXARGAMOUNT);
-        *Info->Arguments = 0;
         unsigned int loopLimit;
 
         //There was no path given
         if (strchr(argv[argc-1],'/') == NULL && strchr(argv[argc-1],'.') == NULL)
         {  
             Info->PathIsThere = false;
-            Info->PathName = ".";
+            strcpy(Info->PathName, ".");
             loopLimit = argc - 1;
         }
         //There is a path 
         else 
         {
             Info->PathIsThere = true;
-            Info->PathName = argv[argc-1];
+            strcpy(Info->PathName, argv[argc-1]);
             strcat(Info->PathName,"/");
             loopLimit = argc - 2;
 
@@ -99,7 +106,6 @@ void parse_arguments(CommandInfo* Info,int argc,char** argv)
             if(argc == 2)
             {
                 Info->NrArguments = 0;
-                Info->Arguments = NULL;
                 return;
             }
         }
@@ -112,7 +118,12 @@ void parse_arguments(CommandInfo* Info,int argc,char** argv)
 
                 strcat(Info->Arguments,++argv[cnt]);
             }
-        Info->NrArguments = strlen(Info->Arguments);   
+        Info->NrArguments = strlen(Info->Arguments);
+
+        if(Info->NrArguments > 4)
+        {
+            error_several("Too much arguments given, maximal 4 are allowed\n");
+        }   
     }
 
 #if DEBUG_MODE == 1
@@ -124,9 +135,26 @@ void parse_arguments(CommandInfo* Info,int argc,char** argv)
 
 }
 
-void getFilesInfo(VariablesforSearch* forSearch, CommandInfo* Info)
+void getFilesInfo(VariablesforSearch* forSearch, CommandInfo* Info, CheckForArguments *Arguments)
 {
-forSearch->DirStream = opendir(Info->PathName);
+    
+    char* Argaux = Info->Arguments;
+
+    for(int i = 0; i < Info->NrArguments; i++)
+    {
+        switch (*Argaux)
+        {
+        case 'a':  Arguments->a_isThere = true; break;
+        case 'l':  Arguments->l_isThere = true; break;
+        case 'g':  Arguments->g_isThere = true; break;
+        case 'o':  Arguments->o_isThere = true; break;
+        default:
+            break;
+        }
+        Argaux++;
+    }
+
+    forSearch->DirStream = opendir(Info->PathName);
     control_null("opendir()",forSearch->DirStream);
         
     errno = 0;
@@ -145,66 +173,69 @@ forSearch->DirStream = opendir(Info->PathName);
         {
             control_negative("lstat()",lstat(forSearch->DirInfo->d_name,&forSearch->buf));
         }
-            
 
-#if DEBUG_MODE == 1
-        printf("Name der Datei: %s\n",forSearch->DirInfo->d_name);
-        printf("Seriennummer der Datei: %ld\n",forSearch->DirInfo->d_ino);
-        printf("ID of device containing file: %ld\n",forSearch->buf.st_dev);
-        printf("Inode number: %ld\n", forSearch->buf.st_ino);
-        printf("Protection: %d\n",forSearch->buf.st_mode);
-        printf("Number of hard links : %ld\n",forSearch->buf.st_nlink);
-        printf("User ID of owner : %d\n", forSearch->buf.st_uid);
-        printf("Group ID of owner : %d\n", forSearch->buf.st_gid);
-        printf("Total size, in bytes : %ld\n", forSearch->buf.st_size);
-        printf("Blocksize for file system I/O : %ld\n", forSearch->buf.st_blksize);
-        printf("Time of last access : %ld\n", forSearch->buf.st_atime);
-        printf("Time of last modification : %ld\n", forSearch->buf.st_mtime);
-        printf("time of last status change : %ld\n\n", forSearch->buf.st_ctime);
-#endif
-        
+        //if a .* file there and -a is no set, then continue to the next iteration
+        if( *forSearch->DirInfo->d_name == '.' && Arguments->a_isThere == false )
+        {
+            continue;
+        }
+
+        char* FileType = " ";
+
+        switch (forSearch->buf.st_mode & __S_IFMT) 
+        {
+        case __S_IFDIR:  FileType = "d";  break;
+        case __S_IFLNK:  FileType = "l";  break;
+        case __S_IFREG:  FileType = "-";  break;
+        default:                        break;
+        }
+        //printf("Seriennummer der Datei: %ld\n",forSearch->DirInfo->d_ino);
+
+        Argaux = Info->Arguments;
+
+        if(Arguments->a_isThere)
+        {
+            if(*Argaux == 'a')
+                Argaux++;
+                    
+        }
+
+        if(Arguments->l_isThere || Arguments->g_isThere || Arguments->o_isThere)
+        {
+            bool PrintIDOwner = true;
+            bool PrintIDGroup = true;
+
+            printf("%s\t",FileType);                 //Type of file 
+            printf("%d\t",forSearch->buf.st_mode);   //Protection: 
+            printf("%ld\t",forSearch->buf.st_nlink); //Number of hard links : 
+            printf("%ld\t", forSearch->buf.st_size);  //Total size, in bytes : 
+            //printf("Blocksize for file system I/O : %ld\n", forSearch->buf.st_blksize);
+            printf("%ld\t", forSearch->buf.st_atime);  //Time of last access : 
+            printf("%ld\t", forSearch->buf.st_mtime);    //Time of last modification : 
+            printf("%ld\t", forSearch->buf.st_ctime);    //time of last status change : 
+
+            switch (*Argaux)
+            {
+            case 'g':   PrintIDOwner = false; break;
+            case 'o':   PrintIDGroup = false;  break;
+            default:     break;
+            }
+
+            if(PrintIDGroup)
+                printf("%d\t", forSearch->buf.st_uid);   //User ID of owner : 
+            
+            if(PrintIDOwner)
+                printf("%d\t", forSearch->buf.st_gid);   //Group ID of owner : 
+                
+        }
+
+        printf("%s\t",forSearch->DirInfo->d_name);   //Name der Datei
+
+        printf("\n");
     }
-        
+
     control_negative("closedir()",closedir(forSearch->DirStream));
 
     if(errno != 0)
         error_several("errno unequal 0, error at readdir()");
 }
-/*
-void book_example()
-{
- char *basename;
-    char *process_cwd;
-    char *pointer;
-    long path_limit;
-
-    if((basename = strrchr(argv[0],'/')) == NULL)
-        basename = argv[0];
-    else
-        basename++;
-
-    if (argc != 2)
-        fprintf(stderr,"Usage: %s <dir>\n", basename);
-
-    if((path_limit = pathconf(argv[1],_PC_PATH_MAX)))
-    {
-        if(errno != 0)
-            fprintf(stderr, "pathconfig failed!\n");
-    }
-    
-    if ((process_cwd = (char*)malloc((size_t)path_limit)) == NULL)
-        fprintf(stderr,"malloc error for pathname");
-    
-    if(chdir(argv[1]) < 0)
-        printf("chdir failed\n");
-    else
-    {
-        if((pointer = getcwd(process_cwd, (size_t)path_limit)) == NULL)
-            fprintf(stderr,"getcwd failed\n");
-        
-        printf("%s: %s [%ld]\n",basename, pointer, path_limit);
-    }
-    
-    free(process_cwd);
-}
-*/
